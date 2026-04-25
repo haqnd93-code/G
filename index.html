@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tatabahasa X-PRO: Central Hub (Firebase Edition)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-analytics.js"></script>
+
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --neon-purple: #bc13fe;
+            --neon-green: #39ff14;
+            --neon-yellow: #fff200;
+            --neon-red: #ff3131;
+            --dark-bg: #0a0a0c;
+            --card-bg: #16161a;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+        .shake { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+
+        @keyframes shake-error {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+        .wrong-reveal {
+            border-color: var(--neon-red) !important;
+            color: var(--neon-red) !important;
+            box-shadow: 0 0 15px var(--neon-red) !important;
+            background: rgba(255, 49, 49, 0.2) !important;
+            animation: shake-error 0.4s ease-in-out;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: var(--dark-bg);
+            color: white;
+            margin: 0;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        nav {
+            padding: 15px 30px;
+            background: rgba(0,0,0,0.9);
+            border-bottom: 2px solid var(--neon-blue);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+        }
+
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; width: 100%; box-sizing: border-box; }
+
+        .main-hub {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-top: 50px;
+        }
+
+        .hub-card {
+            background: var(--card-bg);
+            border: 1px solid #333;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.4s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hub-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 5px; }
+        .card-pelajar::before { background: var(--neon-blue); }
+        .card-ujian::before { background: var(--neon-red); }
+        .card-guru::before { background: var(--neon-purple); }
+        .card-setting::before { background: var(--neon-green); }
+
+        .hub-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-color: var(--neon-blue);
+        }
+
+        .hub-card h2 { font-family: 'Orbitron'; margin-top: 20px; }
+
+        .section { display: none; animation: fadeIn 0.5s ease-in-out; }
+        .active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .btn-back {
+            background: transparent;
+            border: 1px solid #444;
+            color: #888;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .btn-back:hover { color: white; border-color: white; }
+
+        .topic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .topic-card {
+            background: var(--glass);
+            border: 1px solid #333;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .teacher-topic-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .topic-opt {
+            padding: 15px;
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+            transition: 0.3s;
+            color: #aaa;
+        }
+
+        .topic-opt.selected {
+            background: rgba(0, 242, 255, 0.15);
+            border-color: var(--neon-blue);
+            color: var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+            transform: scale(1.02);
+        }
+
+        .word-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin: 20px 0; }
+        
+        .word-box { 
+            padding: 15px; 
+            background: #222; 
+            border: 1px solid #444; 
+            border-radius: 8px; 
+            text-align: center; 
+            cursor: pointer; 
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+        
+        .selected { 
+            border-color: var(--neon-yellow); 
+            color: var(--neon-yellow); 
+            box-shadow: 0 0 15px var(--neon-yellow); 
+            transform: scale(1.05);
+            background: rgba(255, 242, 0, 0.1);
+        }
+
+        .correct-reveal {
+            border-color: var(--neon-green) !important;
+            color: var(--neon-green) !important;
+            box-shadow: 0 0 10px var(--neon-green) !important;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
+        th, td { padding: 12px; border-bottom: 1px solid #333; text-align: left; }
+        th { color: var(--neon-blue); background: rgba(0,0,0,0.3); }
+        
+        input { padding: 12px; background: #000; border: 1px solid #333; color: white; border-radius: 8px; margin: 5px 0; width: 100%; box-sizing: border-box;}
+
+        .timer-box {
+            font-family: 'Orbitron';
+            font-size: 2rem;
+            color: var(--neon-red);
+            text-shadow: 0 0 10px var(--neon-red);
+            margin: 10px 0;
+            background: rgba(255,0,0,0.1);
+            display: inline-block;
+            padding: 5px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--neon-red);
+        }
+
+        .typing-area {
+            background: #111;
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid var(--neon-blue);
+            margin-bottom: 20px;
+            position: relative;
+            min-height: 100px;
+            cursor: text;
+        }
+        .text-display {
+            font-size: 1.5rem;
+            line-height: 1.6;
+            letter-spacing: 1px;
+            color: #444; 
+            margin-bottom: 20px;
+            text-align: left;
+            user-select: none;
+            white-space: pre-wrap;
+        }
+        .char-correct { color: var(--neon-green); text-shadow: 0 0 8px var(--neon-green); }
+        .char-wrong { color: var(--neon-red); background: rgba(255, 49, 49, 0.2); }
+        .char-current { border-bottom: 3px solid var(--neon-blue); animation: blink 0.8s infinite; }
+        @keyframes blink { 50% { border-color: transparent; } }
+
+        #typing-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .btn-submit-typing {
+            width: 100%;
+            padding: 20px;
+            background: var(--neon-blue);
+            color: black;
+            border: none;
+            border-radius: 10px;
+            font-weight: 900;
+            font-family: 'Orbitron';
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+        .btn-submit-typing:hover {
+            box-shadow: 0 0 20px var(--neon-blue);
+            transform: scale(1.02);
+        }
+
+        .feedback-overlay {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 49, 49, 0.1);
+            border: 1px solid var(--neon-red);
+            color: var(--neon-red);
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .test-config-item {
+            background: #222;
+            padding: 15px;
+            margin: 8px 0;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 5px solid var(--neon-yellow);
+        }
+
+        .rank-badge {
+            background: linear-gradient(45deg, var(--neon-purple), var(--neon-blue));
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-size: 0.7rem;
+            margin-left: 5px;
+            font-weight: 900;
+        }
+
+        .config-label {
+            font-size: 0.8rem;
+            color: var(--neon-yellow);
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .btn-danger {
+            background: var(--neon-red);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .skill-container {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .skill-btn {
+            background: #222;
+            border: 2px solid #444;
+            color: #888;
+            padding: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'Orbitron';
+            font-size: 0.7rem;
+            flex: 1;
+            transition: 0.3s;
+        }
+        .skill-btn:not(:disabled):hover {
+            border-color: var(--neon-yellow);
+            color: white;
+            box-shadow: 0 0 10px var(--neon-yellow);
+        }
+        .skill-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: #111;
+        }
+        .skill-active {
+            border-color: var(--neon-blue) !important;
+            color: var(--neon-blue) !important;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+<nav>
+    <div style="font-family: 'Orbitron'; font-weight: 900; font-size: 1.5rem; color: var(--neon-blue); cursor:pointer" onclick="goHome()">TATABAHASA X-PRO</div>
+    <div id="stats-header" style="display:none;">
+        EJEN: <span id="current-ejen-name">---</span> 
+        <span id="rank-display" class="rank-badge">RECRUIT</span> | 
+        <span id="mode-text">LATIHAN</span>
+    </div>
+</nav>
+
+<div class="container">
+
+    <div id="section-home" class="section active">
+        <h1 style="font-family: 'Orbitron'; text-align:center; color: var(--neon-blue);">SISTEM OPERASI PUSAT</h1>
+        <div class="main-hub">
+            <div class="hub-card card-pelajar" onclick="startSession('latihan')">
+                <div style="font-size: 4rem;">📖</div>
+                <h2>MOD LATIHAN</h2>
+                <p>Eksplorasi kendiri & pengukuhan tatabahasa.</p>
+            </div>
+            <div class="hub-card card-ujian" onclick="startSession('ujian')">
+                <div style="font-size: 4rem;">⚡</div>
+                <h2>MOD UJIAN</h2>
+                <p>Misi khas ditetapkan Guru. Masa terhad!</p>
+            </div>
+            <div class="hub-card card-guru" onclick="showSection('guru')">
+                <div style="font-size: 4rem;">👨‍🏫</div>
+                <h2>MOD GURU</h2>
+                <p>Pantau data & kawal penetapan ujian.</p>
+            </div>
+            <div class="hub-card card-setting" onclick="showSection('setting')">
+                <div style="font-size: 4rem;">⚙️</div>
+                <h2>TETAPAN</h2>
+                <p>Urus sistem & reset data.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="section-setting" class="section">
+        <button class="btn-back" onclick="goHome()">⬅️ BALIK KE PUSAT</button>
+        <div class="hub-card" style="text-align:left;">
+            <h2 style="color: var(--neon-green);">⚙️ TETAPAN SISTEM</h2>
+            <p>Uruskan pangkalan data lokal dan tetapan aplikasi anda.</p>
+            
+            <div style="margin-top: 30px;">
+                <h3 style="color: var(--neon-red);">BAHAGIAN BAHAYA</h3>
+                <p>Tindakan di bawah tidak boleh diundur.</p>
+                <button class="btn-danger" onclick="resetLeaderboard()">KOSONGKAN REKOD SKOR (LEADERBOARD)</button>
+                <button class="btn-danger" onclick="resetAllData()" style="background: #550000; margin-top: 15px;">RESET KESELURUHAN SISTEM (PABRIK)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="section-guru" class="section">
+        <button class="btn-back" onclick="goHome()">⬅️ BALIK KE PUSAT</button>
+        
+        <div class="hub-card" style="text-align:left; margin-bottom: 20px; border-color: var(--neon-blue);">
+            <h2 style="color: var(--neon-blue);">PENGATURAN MOD LATIHAN</h2>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px;">
+                <div>
+                    <label class="config-label">Masa Klik Latihan (Saat):</label>
+                    <input type="number" id="set-practice-game-time" value="30">
+                </div>
+                <div>
+                    <label class="config-label">Masa Menaip Latihan (Saat):</label>
+                    <input type="number" id="set-practice-typing-time" value="45">
+                </div>
+            </div>
+            <button onclick="savePracticeSettings()" style="margin-top:15px; background: var(--neon-blue); color:black; border:none; padding:12px; cursor:pointer; width:100%; font-weight:bold; font-family:'Orbitron';">SIMPAN TETAPAN LATIHAN</button>
+        </div>
+
+        <div class="hub-card" style="text-align:left; margin: 20px 0;">
+            <h2 style="color: var(--neon-red);">PENETAPAN MULTI-UJIAN</h2>
+            <div id="teacher-topic-list" class="teacher-topic-selector"></div>
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-top:10px;">
+                <div>
+                    <label class="config-label">Masa Klik Jawapan (Saat):</label>
+                    <input type="number" id="set-test-time" value="30">
+                </div>
+                <div>
+                    <label class="config-label">Masa Menaip (Saat):</label>
+                    <input type="number" id="set-typing-time" value="45" style="border-color: var(--neon-blue);">
+                </div>
+                <div>
+                    <label class="config-label">Kunci Aktivasi:</label>
+                    <input type="text" id="set-test-pass" placeholder="Cth: BM1" style="border-color: var(--neon-yellow);">
+                </div>
+                <div>
+                    <label class="config-label">Combat Skill:</label>
+                    <select id="set-allow-skills" style="width:100%; padding:10px; background:black; color:white; border:1px solid #333;">
+                        <option value="yes">BENARKAN</option>
+                        <option value="no">SEKAT</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="saveTestSettings()" style="margin-top:20px; background: var(--neon-red); color:white; border:none; padding:15px; cursor:pointer; width:100%; font-weight:bold; font-family:'Orbitron';">AKTIFKAN SET UJIAN INI</button>
+            <h3 style="margin-top:30px; border-bottom: 1px solid #333; padding-bottom:10px;">UJIAN AKTIF</h3>
+            <div id="active-test-list"></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div class="hub-card" style="text-align:left;">
+                <h2 style="color: var(--neon-yellow);">🏆 LEADERBOARD</h2>
+                <table id="leaderboard-table">
+                    <thead><tr><th>RANK</th><th>EJEN</th><th>SKOR</th></tr></thead>
+                    <tbody id="leaderboard-body"></tbody>
+                </table>
+            </div>
+            <div class="hub-card" style="text-align:left;">
+                <h2 style="color: var(--neon-red);">⚠️ ANALISIS</h2>
+                <div id="analysis-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="section-login" class="section">
+        <button class="btn-back" onclick="goHome()">⬅️ BALIK KE PUSAT</button>
+        <div class="hub-card">
+            <h2 id="login-title">AKTIVASI IDENTITI</h2>
+            <input type="text" id="player-name" placeholder="NAMA ANDA">
+            <div id="pass-field-container" style="display:none; margin-top:15px;">
+                <p style="color:var(--neon-red); font-weight:bold;">KUNCI AKTIVASI:</p>
+                <input type="password" id="player-pass" style="text-align:center; font-family:Orbitron;">
+            </div>
+            <br><br>
+            <button onclick="loginUser()" style="padding: 15px 40px; background: var(--neon-blue); border:none; font-weight:bold; cursor:pointer; width:100%;">MULAKAN</button>
+        </div>
+    </div>
+
+    <div id="section-pelajar-main" class="section">
+        <button class="btn-back" onclick="goHome()">⬅️ LOG KELUAR</button>
+        <h2 id="pelajar-main-title">MODUL TERSEDIA</h2>
+        <div class="topic-grid" id="topic-list"></div>
+    </div>
+
+    <div id="section-quiz" class="section">
+        <div class="hub-card" id="quiz-container">
+            <div id="quiz-flow-verifikasi">
+                <h2 style="color: var(--neon-yellow);">PENGESAHAN TEORI</h2>
+                <div style="background:rgba(255,255,255,0.05); padding:20px; border-radius:10px; margin:20px 0;">
+                    <p id="verif-statement" style="font-size:1.4rem; font-weight:bold;"></p>
+                </div>
+                <button class="btn-verif btn-true" onclick="checkVerification(true)" style="color:var(--neon-green); border:2px solid; padding:10px 30px; background:none; cursor:pointer;">BETUL</button>
+                <button class="btn-verif btn-false" onclick="checkVerification(false)" style="color:var(--neon-red); border:2px solid; padding:10px 30px; background:none; cursor:pointer;">SALAH</button>
+            </div>
+
+            <div id="quiz-flow-game" style="display:none;">
+                <div id="skill-box" class="skill-container">
+                    <button class="skill-btn" id="skill-atk" onclick="useSkill('atk')">⚔️ ATK (+10s)</button>
+                    <button class="skill-btn" id="skill-def" onclick="useSkill('def')">🛡️ DEF (HINT)</button>
+                    <button class="skill-btn" id="skill-bomb" onclick="useSkill('bomb')">💣 BOMB (-2)</button>
+                    <button class="skill-btn" id="skill-x2" onclick="useSkill('x2')">🔥 X2 SCORE</button>
+                </div>
+                <div class="timer-box" id="timer-display-game">00:00</div>
+                <h2 id="quiz-title">---</h2>
+                <div id="game-feedback" class="feedback-overlay"></div>
+                <div class="word-grid" id="word-grid"></div>
+                <button id="btn-submit" onclick="processSelection()" style="width:100%; padding:20px; background:var(--neon-purple); border:none; color:white; font-weight:bold; cursor:pointer;">PENGESAHAN</button>
+            </div>
+
+            <div id="quiz-flow-typing" style="display:none;">
+                <h2 style="color: var(--neon-blue);">PENGUKUHAN MEMORI (TAIP SEMUA)</h2>
+                <div class="timer-box" id="timer-display-typing">00:00</div>
+                <div class="typing-area" onclick="focusTyping()">
+                    <div id="typing-display" class="text-display"></div>
+                    <input type="text" id="typing-input" autocomplete="off" spellcheck="false">
+                </div>
+                <button id="btn-done-typing" class="btn-submit-typing" onclick="finishQuiz()">Selesai Menaip & Hantar</button>
+                <p style="color: #666; font-size: 0.8rem; margin-top: 10px;">Tip: Klik kawasan kotak hitam untuk mula menaip.</p>
+            </div>
+
+            <div id="quiz-flow-result" style="display:none;">
+                <h1 id="score-text">0/0</h1>
+                <button id="btn-next-mission" onclick="nextTestTopic()" style="display:none; padding:15px; background:var(--neon-green); width:100%; margin-bottom:10px;">TERUSKAN ➡️</button>
+                <button onclick="exitQuiz()" style="padding:10px; background:#333; color:white; width:100%;">KEMBALI</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- INTEGRASI FIREBASE KONFIGURASI ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyAymSWoUxm-PC31KXaMi4VEIWEa7Nkl1WI",
+      authDomain: "game-2cf15.firebaseapp.com",
+      projectId: "game-2cf15",
+      storageBucket: "game-2cf15.firebasestorage.app",
+      messagingSenderId: "326225610672",
+      appId: "1:326225610672:web:b67f5293affa9514d13875",
+      measurementId: "G-4LSK8QT997"
+    };
+
+    // Initialize Firebase
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const database = firebase.database();
+    firebase.analytics();
+
+    // --- DATA UTAMA ---
+    const db = {
+        "Kata Sendi Nama": { statement: "Kata sendi nama ialah perkataan yang letaknya di hadapan kata nama atau frasa nama.", ans: true, count: 13, correct: ["di","ke","dari","daripada","kepada","pada","bagi","demi","tentang","seperti","bagai","umpama","laksana"], wrong: ["makan","dan","cantik","berlari","meja"] },
+        "Kata Hubung": { statement: "Kata hubung digunakan untuk menghubungkan ayat tunggal menjadi ayat majmuk.", ans: true, count: 8, correct: ["dan","atau","tetapi","sambil","lalu","kerana","agar","meskipun"], wrong: ["dari","meja","merah","pada","di"] },
+        "Kata Tanya": { statement: "Kata tanya digunakan untuk menanyakan sesuatu dan diakhiri dengan tanda soal.", ans: true, count: 7, correct: ["apa","siapa","mana","bila","bagaimana","mengapa","berapa"], wrong: ["wah","eh","aduh","syabas","hai"] },
+        "Kata Perintah": { statement: "Kata perintah bertujuan untuk memberikan arahan, larangan, silaan, atau permintaan.", ans: true, count: 6, correct: ["jangan","usah","sila","jemput","minta","tolong"], wrong: ["siapa","sudah","akan","sangat","boleh"] },
+        "Kata Pangkal Ayat": { statement: "Kata pangkal ayat sering digunakan dalam penulisan Bahasa Melayu Klasik.", ans: true, count: 5, correct: ["hatta","maka","alkisah","syahadan","arakian"], wrong: ["dan","dengan","tetapi","lalu","untuk"] },
+        "Kata Bantu": { statement: "Kata bantu memberikan makna tambahan pada frasa kerja, frasa adjektif, atau frasa sendi nama.", ans: true, count: 8, correct: ["akan","sudah","pernah","sedang","boleh","dapat","mesti","hendak"], wrong: ["sangat","amat","paling","ialah","adalah"] },
+        "Kata Penguat": { statement: "Kata penguat ialah perkataan yang mengikuti kata nama untuk menunjukkan bilangan.", ans: false, count: 7, correct: ["sangat","amat","paling","terlalu","agak","sekali","benar"], wrong: ["mungkin","belum","telah","harus","mampu"] },
+        "Kata Penegas": { statement: "Kata penegas seperti '-lah' and '-kah' digunakan untuk memberikan penekanan pada bahagian tertentu dalam ayat.", ans: true, count: 5, correct: ["-lah","-kah","-tah","juga","pun"], wrong: ["jika","kerana","untuk","sebagai","seperti"] },
+        "Kata Nafi": { statement: "Kata nafi 'bukan' digunakan untuk menafikan frasa nama and frasa sendi nama.", ans: true, count: 2, correct: ["tidak","bukan"], wrong: ["ya","betul","benar","pasti","sah"] },
+        "Kata Pemeri": { statement: "Kata pemeri 'ialah' diletakkan di hadapan frasa adjektif atau frasa kerja.", ans: false, count: 2, correct: ["ialah","adalah"], wrong: ["mahu","ingin","mampu","ada","mempunyai"] },
+        "Kata Pembenar": { statement: "Kata pembenar digunakan untuk mengesahkan sesuatu penyatakan.", ans: true, count: 3, correct: ["ya","benar","betul"], wrong: ["bukan","tidak","mungkin","barangkali","harap"] },
+        "Kata Arah": { statement: "Kata arah biasanya hadir sebelum frasa nama and selepas kata sendi nama.", ans: true, count: 6, correct: ["atas","bawah","dalam","luar","samping","hadapan"], wrong: ["sini","sana","situ","kini","nanti"] },
+        "Kata Bilangan": { statement: "Kata bilangan digunakan untuk menyatakan jumlah atau urutan sesuatu.", ans: true, count: 7, correct: ["dua","beberapa","seluruh","semua","setengah","para","masing-masing"], wrong: ["besar","kecil","tebal","nipis","luas"] },
+        "Kata Penekan": { statement: "Contoh kata penekan ialah perkataan '-nya'.", ans: true, count: 1, correct: ["-nya"], wrong: ["-kah","-lah","-pun","-tah","jua"] },
+        "Kata Pembenda": { statement: "Kata pembenda menukarkan perkataan yang bukan kata nama menjadi kata nama.", ans: true, count: 1, correct: ["-nya"], wrong: ["yang","untuk","oleh","bagi","tentang"] }
+    };
+
+    const contohAyatLib = {
+        "Kata Sendi Nama": ["Ali duduk di atas kerusi itu.", "Ayah baru pulang dari pejabat.", "Buku itu ada pada abang saya."],
+        "Kata Hubung": ["Ali dan Abu bermain bola.", "Saya mahu makan tetapi nasi sudah habis.", "Adik menangis kerana lapar."],
+        "Kata Tanya": ["Siapakah nama kucing kamu?", "Apakah warna kegemaran kamu?", "Di manakah letaknya Kuala Lumpur?"],
+        "Kata Perintah": ["Jangan bermain di tepi longkang.", "Tolong tutup pintu itu.", "Sila masuk ke dalam dewan."],
+        "Kata Pangkal Ayat": ["Maka, baginda pun berangkat pergi.", "Alkisah, terdapat seorang saudagar kaya.", "Hatta, peperangan pun bermula."],
+        "Kata Bantu": ["Saya akan pergi ke sekolah esok.", "Adik sedang tidur di bilik.", "Dia pernah melawat Zoo Negara."],
+        "Kata Penguat": ["Rumah itu sangat besar.", "Pemandangan di sini amat indah.", "Budak itu paling pandai di kelas."],
+        "Kata Penegas": ["Dialah yang mencuri pen saya.", "Apatah lagi yang kamu mahukan?", "Saya pun ingin pergi juga."],
+        "Kata Nafi": ["Saya tidak mahu makan.", "Ini bukan buku saya.", "Dia tidak datang ke sekolah."],
+        "Kata Pemeri": ["Nama saya ialah Ahmad.", "Keputusan itu adalah muktamad.", "Warna kegemarannya ialah biru."],
+        "Kata Pembenar": ["Ya, saya yang melakukannya.", "Benar, kata-kata kamu itu betul.", "Betul, dialah pemenangnya."],
+        "Kata Arah": ["Kucing itu tidur di bawah meja.", "Baju itu diletakkan di dalam almari.", "Dia berdiri di hadapan rumah."],
+        "Kata Bilangan": ["Dua orang murid sedang berlari.", "Semua murid diminta berkumpul.", "Beberapa buah kereta rosak."],
+        "Kata Penekan": ["Tampaknya hari akan hujan.", "Sesungguhnya dia seorang yang jujur.", "Nampaknya dia sedang sedih."],
+        "Kata Pembenda": ["Lajunya kereta itu memecah rekod.", "Sakitnya kaki saya terjatuh tadi.", "Cantiknya bunga itu mekar."]
+    };
+
+    let currentUser = "";
+    let currentMode = "latihan"; 
+    let activeTopic = "";
+    let dataRecords = JSON.parse(localStorage.getItem('xpro_records')) || [];
+    let multiTestConfig = JSON.parse(localStorage.getItem('xpro_multi_test')) || [];
+    
+    let activeExam = null; 
+    let currentTestIdx = 0;
+    let timerInterval;
+    let timeLeft = 0;
+    let targetSentence = "";
+    let currentScore = 0;
+
+    let skillsUsed = { atk: false, def: false, bomb: false, x2: false };
+    let x2Active = false;
+
+    window.onload = function() { renderActiveTests(); };
+
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById('section-' + id).classList.add('active');
+        if(id === 'pelajar-main') renderTopics();
+        if(id === 'guru') { 
+            renderTeacherTopics(); 
+            renderActiveTests(); 
+            renderLeaderboard(); 
+            renderAnalysis(); 
+            let pConf = JSON.parse(localStorage.getItem('xpro_practice_config')) || { gameTime: 30, typingTime: 45 };
+            document.getElementById('set-practice-game-time').value = pConf.gameTime;
+            document.getElementById('set-practice-typing-time').value = pConf.typingTime;
+        }
+    }
+
+    function resetLeaderboard() {
+        if(confirm("Adakah anda pasti ingin memadam semua rekod skor ejen?")) {
+            dataRecords = [];
+            localStorage.setItem('xpro_records', JSON.stringify(dataRecords));
+            alert("Leaderboard telah dikosongkan.");
+            renderLeaderboard();
+        }
+    }
+
+    function resetAllData() {
+        if(confirm("PERINGATAN: Semua data termasuk ujian aktif, skor, dan tetapan akan dipadamkan secara kekal!")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+
+    function savePracticeSettings() {
+        const gTime = parseInt(document.getElementById('set-practice-game-time').value) || 30;
+        const tTime = parseInt(document.getElementById('set-practice-typing-time').value) || 45;
+        localStorage.setItem('xpro_practice_config', JSON.stringify({ gameTime: gTime, typingTime: tTime }));
+        alert("Tetapan Latihan Disimpan!");
+    }
+
+    function saveTestSettings() {
+        const topics = Array.from(document.querySelectorAll('.topic-opt.selected')).map(el => el.innerText);
+        const gameTime = parseInt(document.getElementById('set-test-time').value) || 30;
+        const typingTime = parseInt(document.getElementById('set-typing-time').value) || 45;
+        const pass = document.getElementById('set-test-pass').value.trim().toUpperCase();
+        const allowSkills = document.getElementById('set-allow-skills').value;
+
+        if(topics.length === 0 || !pass) return alert("Lengkapkan maklumat!");
+
+        const newConfig = { pass, topics, gameTime, typingTime, allowSkills };
+        const exists = multiTestConfig.findIndex(c => c.pass === pass);
+        if(exists > -1) multiTestConfig[exists] = newConfig; else multiTestConfig.push(newConfig);
+
+        localStorage.setItem('xpro_multi_test', JSON.stringify(multiTestConfig));
+        renderActiveTests();
+        alert("SET UJIAN AKTIF!");
+    }
+
+    function renderActiveTests() {
+        const container = document.getElementById('active-test-list');
+        if(!container) return; container.innerHTML = "";
+        multiTestConfig.forEach((conf, idx) => {
+            container.innerHTML += `
+                <div class="test-config-item">
+                    <div>
+                        <strong style="color:var(--neon-yellow)">KUNCI: ${conf.pass}</strong><br>
+                        <small>Masa Klik: ${conf.gameTime}s | Skill: ${conf.allowSkills === 'yes' ? 'ON' : 'OFF'}</small>
+                    </div>
+                    <button onclick="deleteTest(${idx})" style="background:var(--neon-red); border:none; color:white; padding:5px 10px; cursor:pointer;">HAPUS</button>
+                </div>`;
+        });
+    }
+
+    function deleteTest(idx) { if(confirm("Hapus?")) { multiTestConfig.splice(idx, 1); localStorage.setItem('xpro_multi_test', JSON.stringify(multiTestConfig)); renderActiveTests(); } }
+
+    function goHome() { clearInterval(timerInterval); showSection('home'); document.getElementById('stats-header').style.display = 'none'; }
+    
+    function startSession(mode) { 
+        currentMode = mode; 
+        document.getElementById('pass-field-container').style.display = mode === 'ujian' ? 'block' : 'none';
+        document.getElementById('mode-text').innerText = mode.toUpperCase();
+        showSection('login'); 
+    }
+    
+    function loginUser() {
+        const name = document.getElementById('player-name').value.trim().toUpperCase();
+        if(!name) return alert("Masukkan nama!");
+        if(currentMode === 'ujian') {
+            const pass = document.getElementById('player-pass').value.trim().toUpperCase();
+            const match = multiTestConfig.find(c => c.pass === pass);
+            if(!match) return alert("KUNCI SALAH!");
+            activeExam = match; currentTestIdx = 0; 
+            skillsUsed = { atk: false, default: false, bomb: false, x2: false };
+            openQuiz(activeExam.topics[currentTestIdx]);
+        } else { showSection('pelajar-main'); }
+        currentUser = name;
+        document.getElementById('current-ejen-name').innerText = name;
+        document.getElementById('stats-header').style.display = 'block';
+    }
+
+    function renderTopics() {
+        const grid = document.getElementById('topic-list'); grid.innerHTML = "";
+        for(let t in db) grid.innerHTML += `<div class="topic-card" onclick="openQuiz('${t}')"><h3>${t}</h3></div>`;
+    }
+
+    function openQuiz(t) {
+        activeTopic = t; 
+        x2Active = false; 
+        showSection('quiz');
+        document.getElementById('quiz-flow-verifikasi').style.display = 'block';
+        document.getElementById('quiz-flow-game').style.display = 'none';
+        document.getElementById('quiz-flow-typing').style.display = 'none';
+        document.getElementById('quiz-flow-result').style.display = 'none';
+        document.getElementById('verif-statement').innerText = db[t].statement;
+        document.getElementById('game-feedback').style.display = 'none';
+    }
+
+    function checkVerification(ans) {
+        if(ans === db[activeTopic].ans) startPracticalGame(); 
+        else { document.getElementById('quiz-container').classList.add('shake'); setTimeout(() => document.getElementById('quiz-container').classList.remove('shake'), 400); }
+    }
+
+    function startPracticalGame() {
+        document.getElementById('quiz-flow-verifikasi').style.display = 'none';
+        document.getElementById('quiz-flow-game').style.display = 'block';
+        document.getElementById('quiz-title').innerText = activeTopic;
+
+        const skillBox = document.getElementById('skill-box');
+        if(currentMode === 'ujian' && activeExam.allowSkills === 'yes') {
+            skillBox.style.display = 'flex';
+            updateSkillButtons();
+        } else {
+            skillBox.style.display = 'none';
+        }
+
+        let pConf = JSON.parse(localStorage.getItem('xpro_practice_config')) || { gameTime: 30, typingTime: 45 };
+        let time = currentMode === 'ujian' ? activeExam.gameTime : pConf.gameTime;
+        
+        startTimer(time, 'game');
+        generateWordGrid();
+    }
+
+    function updateSkillButtons() {
+        for(let key in skillsUsed) {
+            const btn = document.getElementById(`skill-${key}`);
+            if(btn) {
+                btn.disabled = skillsUsed[key];
+                btn.classList.remove('skill-active');
+            }
+        }
+    }
+
+    function useSkill(type) {
+        if(skillsUsed[type]) return;
+        skillsUsed[type] = true;
+        const btn = document.getElementById(`skill-${type}`);
+        btn.disabled = true;
+        btn.classList.add('skill-active');
+
+        if(type === 'atk') {
+            timeLeft += 10;
+            updateTimerDisplay('game');
+        } else if(type === 'def') {
+            alert(`HINT: Fokus kepada perkataan yang berkaitan dengan ${activeTopic}.`);
+        } else if(type === 'bomb') {
+            const boxes = Array.from(document.querySelectorAll('.word-box:not(.selected)'));
+            let bombed = 0;
+            boxes.forEach(b => {
+                if(!db[activeTopic].correct.includes(b.innerText) && bombed < 2) {
+                    b.style.opacity = "0.2";
+                    b.style.pointerEvents = "none";
+                    b.innerText = "MISS";
+                    bombed++;
+                }
+            });
+        } else if(type === 'x2') {
+            x2Active = true;
+            alert("BOOSTER AKTIF: Skor berganda jika semua betul!");
+        }
+    }
+
+    function generateWordGrid() {
+        const grid = document.getElementById('word-grid'); grid.innerHTML = "";
+        let pool = [...db[activeTopic].correct, ...db[activeTopic].wrong].sort(() => Math.random() - 0.5);
+        pool.forEach(w => {
+            const b = document.createElement('div'); b.className = "word-box"; b.innerText = w;
+            b.onclick = () => { 
+                if(!b.classList.contains('correct-reveal') && !b.classList.contains('wrong-reveal')) {
+                    b.classList.toggle('selected');
+                }
+            };
+            grid.appendChild(b);
+        });
+    }
+
+    function processSelection() {
+        const boxes = document.querySelectorAll('.word-box');
+        const correctAnswers = db[activeTopic].correct;
+        let selectedCorrect = 0;
+        let hasError = false;
+
+        boxes.forEach(b => {
+            const isCorrect = correctAnswers.includes(b.innerText);
+            const isSelected = b.classList.contains('selected');
+
+            if(isCorrect && isSelected) selectedCorrect++;
+            if(isCorrect && !isSelected) { hasError = true; b.classList.add('correct-reveal'); }
+            if(!isCorrect && isSelected) { hasError = true; b.classList.remove('selected'); b.classList.add('wrong-reveal'); }
+        });
+
+        if(!hasError && x2Active) {
+            currentScore = selectedCorrect * 2;
+        } else {
+            currentScore = selectedCorrect;
+        }
+
+        if (hasError) {
+            document.getElementById('game-feedback').innerText = "RALAT DIKESAN! Sila semak jawapan.";
+            document.getElementById('game-feedback').style.display = 'block';
+            setTimeout(() => {
+                if (currentMode === 'latihan') {
+                    document.getElementById('game-feedback').style.display = 'none';
+                    setTimeout(generateWordGrid, 1500);
+                } else {
+                    startTypingModule();
+                }
+            }, 2000);
+        } else {
+            startTypingModule();
+        }
+    }
+
+    function startTimer(s, type) { 
+        clearInterval(timerInterval);
+        timeLeft = s; updateTimerDisplay(type);
+        timerInterval = setInterval(() => { 
+            timeLeft--; updateTimerDisplay(type); 
+            if(timeLeft <= 0) { 
+                clearInterval(timerInterval); 
+                if(type === 'game') startTypingModule(); else finishQuiz();
+            } 
+        }, 1000); 
+    }
+
+    function updateTimerDisplay(type) { 
+        const m = Math.floor(timeLeft/60); const s = timeLeft%60; 
+        const el = document.getElementById(`timer-display-${type}`);
+        if(el) el.innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; 
+    }
+
+    function startTypingModule() {
+        clearInterval(timerInterval);
+        document.getElementById('quiz-flow-game').style.display = 'none';
+        document.getElementById('quiz-flow-typing').style.display = 'block';
+        
+        let pConf = JSON.parse(localStorage.getItem('xpro_practice_config')) || { gameTime: 30, typingTime: 45 };
+        let time = currentMode === 'ujian' ? activeExam.typingTime : pConf.typingTime;
+
+        startTimer(time, 'typing');
+
+        const allCorrectWords = db[activeTopic].correct.join(', ');
+        const ayatList = contohAyatLib[activeTopic] || ["Contoh ayat tidak tersedia."];
+        const randomAyat = ayatList[Math.floor(Math.random() * ayatList.length)];
+
+        targetSentence = `Contoh ${activeTopic} ialah ${allCorrectWords}.\nContoh Ayat: ${randomAyat}`;
+        
+        const display = document.getElementById('typing-display'); 
+        display.innerHTML = "";
+        targetSentence.split("").forEach((char, idx) => {
+            const span = document.createElement('span'); 
+            span.innerText = char;
+            if(idx === 0) span.className = "char-current";
+            display.appendChild(span);
+        });
+        document.getElementById('typing-input').value = "";
+        document.getElementById('typing-input').oninput = handleTyping;
+        setTimeout(focusTyping, 100);
+    }
+
+    function focusTyping() { document.getElementById('typing-input').focus(); }
+
+    function handleTyping(e) {
+        const val = e.target.value; 
+        const spans = document.querySelectorAll('#typing-display span');
+        spans.forEach((span, i) => {
+            if (i < val.length) span.className = (val[i] === targetSentence[i]) ? "char-correct" : "char-wrong";
+            else if (i === val.length) span.className = "char-current"; 
+            else span.className = "";
+        });
+
+        if (val === targetSentence) { 
+            clearInterval(timerInterval); 
+            setTimeout(finishQuiz, 500); 
+        }
+    }
+
+    function finishQuiz() {
+        clearInterval(timerInterval);
+        
+        const resultData = { 
+            name: currentUser, 
+            mode: currentMode, 
+            topic: activeTopic, 
+            score: currentScore, 
+            total: db[activeTopic].count, 
+            date: new Date().toLocaleString(),
+            timestamp: Date.now()
+        };
+
+        // Simpan ke Local Storage (Backup)
+        dataRecords.push(resultData);
+        localStorage.setItem('xpro_records', JSON.stringify(dataRecords));
+
+        // SIMPAN KE FIREBASE (Realtime)
+        database.ref('scores/' + currentUser + '_' + Date.now()).set(resultData);
+
+        document.getElementById('quiz-flow-typing').style.display = 'none';
+        document.getElementById('quiz-flow-result').style.display = 'block';
+        document.getElementById('score-text').innerText = `SKOR: ${currentScore} / ${db[activeTopic].count}`;
+        
+        if(currentMode === 'ujian' && currentTestIdx < activeExam.topics.length - 1) document.getElementById('btn-next-mission').style.display = 'block';
+        else document.getElementById('btn-next-mission').style.display = 'none';
+    }
+
+    function nextTestTopic() { currentTestIdx++; openQuiz(activeExam.topics[currentTestIdx]); }
+    function exitQuiz() { goHome(); }
+
+    function renderTeacherTopics() {
+        const container = document.getElementById('teacher-topic-list');
+        container.innerHTML = "";
+        for(let t in db) {
+            const div = document.createElement('div'); div.className = "topic-opt"; div.innerText = t;
+            div.onclick = function() { this.classList.toggle('selected'); };
+            container.appendChild(div);
+        }
+    }
+
+    function renderLeaderboard() {
+        const scores = {}; dataRecords.forEach(r => { scores[r.name] = (scores[r.name] || 0) + r.score; });
+        const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]).slice(0, 5);
+        document.getElementById('leaderboard-body').innerHTML = sorted.map((s, idx) => `<tr><td>#${idx+1}</td><td>${s[0]}</td><td>${s[1]}</td></tr>`).join('');
+    }
+
+    function renderAnalysis() {
+        document.getElementById('analysis-list').innerHTML = "<p style='color:#666'>Analisis data sedang dikumpul...</p>";
+    }
+</script>
+</body>
+</html>
